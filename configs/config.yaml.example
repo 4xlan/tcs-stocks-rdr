@@ -1,0 +1,15 @@
+### Connect to market params
+# Url for portfolio
+url: "https://api-invest.tinkoff.ru/openapi"
+# Token for API
+token: ""
+# Timeout in sec.
+timeout: 5
+# Depth of orderbook
+depth: 1
+
+### Server params
+# Listen on the next address
+ip: "" 
+# Listen on the next port
+port: "9100"
