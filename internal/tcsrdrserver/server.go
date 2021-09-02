@@ -38,7 +38,7 @@ func Init(isReload bool) error {
 
 func getLastPrice(figi *string) (float64, error) {
 
-	var orderbook_resp TCSPriceResponse
+	var orderbookResp TCSPriceResponse
 
 	client := &http.Client{
 		Timeout: time.Duration(config.Timeout) * time.Second,
@@ -60,20 +60,28 @@ func getLastPrice(figi *string) (float64, error) {
 		return 0, err
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			if err != nil {
+				log.Println(err)
+				err = closeErr
+			}
+		}
+	}()
 
 	if err != nil {
 		log.Printf("Something wrong during update %s: %v", *figi, err)
 		return 0, err
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&orderbook_resp)
+	err = json.NewDecoder(resp.Body).Decode(&orderbookResp)
 	if err != nil {
 		log.Println(err)
 		return 0, err
 	}
 
-	return orderbook_resp.Payload.LastPrice, nil
+	return orderbookResp.Payload.LastPrice, nil
 }
 
 func getPortfolioData(response *TCSPortfolioResponse) error {
@@ -98,7 +106,15 @@ func getPortfolioData(response *TCSPortfolioResponse) error {
 		return err
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			if err != nil {
+				log.Println(err)
+				err = closeErr
+			}
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		log.Fatalf("Incorrect response: %v\n", resp.StatusCode)
@@ -115,26 +131,16 @@ func getPortfolioData(response *TCSPortfolioResponse) error {
 
 func httpUpdateHandler(response *TCSPortfolioResponse, currentDateTime *string, currentDate *string, cachedResponse *map[string]float64) error {
 
-	var waitGr sync.WaitGroup
-
 	// Step 1. Get the portfolio's current state.
 
-	waitGr.Add(1)
-	go func() error {
-		defer waitGr.Done()
-		err := getPortfolioData(response)
+	err := getPortfolioData(response)
 
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}()
-	waitGr.Wait()
+	if err != nil {
+		return err
+	}
 
 	// Step 2. As TinkoffAPI can't provide prices in portfolio, we have to request them separately.
 	//         (You may get some 0.00 in average instead of real prices, if you get the stocks due to corporate actions).
-
 	// Step 2.1. Clear cache
 
 	*cachedResponse = make(map[string]float64)
@@ -142,26 +148,11 @@ func httpUpdateHandler(response *TCSPortfolioResponse, currentDateTime *string, 
 	// Step 2.2. Request prices
 
 	for _, item := range response.Positions {
-
-		if item.InstrumentType != "Currency" {
-			waitGr.Add(1)
-			go func(ticker string, figi string) error {
-				defer waitGr.Done()
-
-				req, err := getLastPrice(&figi)
-
-				if err != nil {
-					return err
-				}
-
-				(*cachedResponse)[ticker] = req
-				return nil
-
-			}(item.Ticker, item.Figi)
+		err = processStockItem(&item, cachedResponse)
+		if err != nil {
+			return err
 		}
 	}
-
-	waitGr.Wait()
 
 	*currentDateTime = time.Now().Format("02.01.2006 15:04 MST")
 
@@ -186,7 +177,7 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 	var response TCSPortfolioResponse
 	var currentDateTime string
 	var currentDate string
-	var cachedResponse map[string]float64 = map[string]float64{}
+	cachedResponse := map[string]float64{}
 
 	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
 
@@ -194,16 +185,19 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Something went wrong during info request, please check logs")
-			log.Println(err)
+			_, printErr := fmt.Fprintf(w, "Something went wrong during info request, please check logs")
+			_ = checkPrintErr(&printErr, &err)
 		} else {
-			fmt.Fprintf(w, "Done at %v\n", currentDateTime)
-			log.Println("Info has been updated")
+			_, printErr := fmt.Fprintf(w, "Done at %v\n", currentDateTime)
+			if checkPrintErr(&printErr) {
+				log.Println("Info has been updated")
+			}
 		}
 	})
 
 	http.HandleFunc("/getPortfolio", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "%+v\n", response)
+		_, printErr := fmt.Fprintf(w, "%+v\n", response)
+		_ = checkPrintErr(&printErr)
 	})
 
 	http.HandleFunc("/getTicker", func(w http.ResponseWriter, r *http.Request) {
@@ -217,9 +211,11 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, "Ticker %s is not found!\n", keys[0])
+			_, printErr := fmt.Fprintf(w, "Ticker %s is not found!\n", keys[0])
+			_ = checkPrintErr(&printErr)
 		} else {
-			fmt.Fprintf(w, "date: %s, ticker: %s, price: %f\n", currentDate, keys[0], val)
+			_, printErr := fmt.Fprintf(w, "date: %s, ticker: %s, price: %f\n", currentDate, keys[0], val)
+			_ = checkPrintErr(&printErr)
 		}
 	})
 
@@ -228,31 +224,43 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Something went wrong, check the logs\n")
+			_, printErr := fmt.Fprintf(w, "Something went wrong, check the logs\n")
+			_ = checkPrintErr(&printErr, &err)
 		}
 
-		fmt.Fprintf(w, "Config has been reloaded\n")
+		_, printErr := fmt.Fprintf(w, "Config has been reloaded\n")
+		_ = checkPrintErr(&printErr)
 	})
 
 	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Server shutdown initiated")
-		s.Shutdown(context.Background())
+		err := s.Shutdown(context.Background())
+		if err != nil {
+			log.Fatalln("Error during server shutdown: ", err)
+		}
+
 	})
 
 	http.HandleFunc("/getCache", func(w http.ResponseWriter, r *http.Request) {
 		if len(cachedResponse) == 0 {
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, "Cache is empty!\n")
+			_, printErr := fmt.Fprintf(w, "Cache is empty!\n")
+			_ = checkPrintErr(&printErr)
 		} else {
-			fmt.Fprintf(w, "Updated at %v\n", currentDateTime)
+			_, printErr := fmt.Fprintf(w, "Updated at %v\n", currentDateTime)
+			_ = checkPrintErr(&printErr)
 			for key, value := range cachedResponse {
-				fmt.Fprintf(w, "%s: %f\n", key, value)
+				_, printErr := fmt.Fprintf(w, "%s: %f\n", key, value)
+				_ = checkPrintErr(&printErr)
 			}
 		}
 	})
 
 	http.HandleFunc("/getConfig", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("%+v\n", config)))
+		if _, err := w.Write([]byte(fmt.Sprintf("%+v\n", config))); err != nil {
+			log.Println("Error during config read/parse: ", err)
+		}
+
 	})
 
 	go func() {
@@ -262,4 +270,32 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 			log.Fatalf("error during websrv execution: %v", err)
 		}
 	}()
+}
+
+func checkPrintErr(printErr *error, otherErrors ...*error) bool {
+	if printErr != nil {
+		log.Printf("Next error has been occured during response writing: %v", printErr)
+		if len(otherErrors) != 0 {
+			for _, errMsg := range otherErrors {
+				log.Println(errMsg)
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func processStockItem(item *Position, cachedResponse *map[string]float64) error {
+	if item.InstrumentType == "Currency" {
+		return nil
+	}
+
+	req, err := getLastPrice(&item.Figi)
+	if err != nil {
+		return err
+	} else {
+		(*cachedResponse)[item.Ticker] = req
+	}
+
+	return nil
 }

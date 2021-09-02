@@ -9,23 +9,36 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type TCSRDRCfgFile struct {
+	Token   string `yaml:"token"`
+	Url     string `yaml:"url"`
+	Depth   int    `yaml:"depth"`
+	Ip      string `yaml:"ip"`
+	Port    string `yaml:"port"`
+	Timeout int    `yaml:"timeout"`
+}
+
 func GetConfig(config *TCSRDRCfgFile, defaultConfigPath *string) error {
 
 	// Calculating the ABS path for config file
-	absp, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	absPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return err
 	}
 
-	filepath := fmt.Sprintf("%s/%s", absp, *defaultConfigPath)
+	configFile := fmt.Sprintf("%s/%s", absPath, *defaultConfigPath)
 
 	// Open file and read it
-	data, err := ioutil.ReadFile(filepath)
+	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return err
 	}
 
 	// Reading cfg file
-	yaml.Unmarshal([]byte(data), config)
+	err = yaml.Unmarshal(data, config)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
