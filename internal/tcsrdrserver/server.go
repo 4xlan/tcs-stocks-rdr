@@ -186,7 +186,7 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, printErr := fmt.Fprintf(w, "Something went wrong during info request, please check logs")
-			_ = checkPrintErr(&printErr, &err)
+			checkPrintErr(&printErr, &err)
 		} else {
 			_, printErr := fmt.Fprintf(w, "Done at %v\n", currentDateTime)
 			if checkPrintErr(&printErr) {
@@ -197,7 +197,7 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 
 	http.HandleFunc("/getPortfolio", func(w http.ResponseWriter, r *http.Request) {
 		_, printErr := fmt.Fprintf(w, "%+v\n", response)
-		_ = checkPrintErr(&printErr)
+		checkPrintErr(&printErr)
 	})
 
 	http.HandleFunc("/getTicker", func(w http.ResponseWriter, r *http.Request) {
@@ -225,11 +225,11 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, printErr := fmt.Fprintf(w, "Something went wrong, check the logs\n")
-			_ = checkPrintErr(&printErr, &err)
+			checkPrintErr(&printErr, &err)
 		}
 
 		_, printErr := fmt.Fprintf(w, "Config has been reloaded\n")
-		_ = checkPrintErr(&printErr)
+		checkPrintErr(&printErr)
 	})
 
 	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
@@ -245,13 +245,13 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 		if len(cachedResponse) == 0 {
 			w.WriteHeader(http.StatusNotFound)
 			_, printErr := fmt.Fprintf(w, "Cache is empty!\n")
-			_ = checkPrintErr(&printErr)
+			checkPrintErr(&printErr)
 		} else {
 			_, printErr := fmt.Fprintf(w, "Updated at %v\n", currentDateTime)
-			_ = checkPrintErr(&printErr)
+			checkPrintErr(&printErr)
 			for key, value := range cachedResponse {
 				_, printErr := fmt.Fprintf(w, "%s: %f\n", key, value)
-				_ = checkPrintErr(&printErr)
+				checkPrintErr(&printErr)
 			}
 		}
 	})
