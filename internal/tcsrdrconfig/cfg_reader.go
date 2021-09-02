@@ -18,7 +18,7 @@ type TCSRDRCfgFile struct {
 	Timeout int    `yaml:"timeout"`
 }
 
-func GetConfig(config *TCSRDRCfgFile, defaultConfigPath *string) error {
+func (cfg *TCSRDRCfgFile)GetConfig(defaultConfigPath *string) error {
 
 	// Calculating the ABS path for config file
 	absPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -35,7 +35,7 @@ func GetConfig(config *TCSRDRCfgFile, defaultConfigPath *string) error {
 	}
 
 	// Reading cfg file
-	err = yaml.Unmarshal(data, config)
+	err = yaml.Unmarshal(data, cfg)
 	if err != nil {
 		return err
 	}
