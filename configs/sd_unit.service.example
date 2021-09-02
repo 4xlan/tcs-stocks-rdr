@@ -1,0 +1,13 @@
+[Unit]
+Description=TCS Stonks values collector
+
+[Service]
+ExecStart={{ Path_to_bin }}
+ExecStop=curl -s http://{{ IP:PORT }}/stop
+ExecReload=curl -s http://{{ IP:PORT }}/reload
+ExecRestart=curl -s http://{{ IP:PORT }}/stop && {{ Path_to_bin }}
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+

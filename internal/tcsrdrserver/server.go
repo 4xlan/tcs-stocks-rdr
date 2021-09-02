@@ -273,11 +273,11 @@ func HttpTickerServer(wg *sync.WaitGroup) {
 }
 
 func checkPrintErr(printErr *error, otherErrors ...*error) bool {
-	if printErr != nil {
+	if *printErr != nil {
 		log.Printf("Next error has been occured during response writing: %v", printErr)
 		if len(otherErrors) != 0 {
 			for _, errMsg := range otherErrors {
-				log.Println(errMsg)
+				log.Println(*errMsg)
 			}
 		}
 		return false
