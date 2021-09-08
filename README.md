@@ -9,15 +9,15 @@ This is **not**:
 
 This is:
 
-- Small web service, which just get the prices and let them being parsed by other financial apps
+- Small web service, which just gets the prices and let them being parsed by other financial apps
 
 ## How to use
 
-1. Make a copy of config file, fill all fields and place it in `config` folder near bin file
-2. Start app in background mode. Also, you can use [systemd unit example](configs/sd_unit.service.example) for this step.
-3. (opt.) Add config into you financial app
+1. Make a copy of the config file, fill all fields and place it in the `config` folder near the bin file
+2. Start the app in background mode. Also, you can use [systemd unit example](configs/sd_unit.service.example) for this step.
+3. (opt.) Add config to your financial app
 
-   As example (works in KMyMoney):
+   For an example (works in KMyMoney):
 
    | Param | Value |
    | :-- | :-- |
